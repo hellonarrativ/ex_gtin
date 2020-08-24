@@ -44,6 +44,27 @@ defmodule ExGtin.Validation do
     end
   end
 
+
+  def normalize(gtin) do
+    with {:ok, type} <- gtin_check_digit(gtin),
+      do: {:ok, normalize_gtin(gtin, type)}
+  end
+
+  def normalize_gtin(gtin, "GTIN-8"), do: "000000#{gtin}"
+  def normalize_gtin(gtin, "ISBN-10") do
+    {code, check_digit} = gtin
+      |> String.codepoints
+      |> Enum.map(fn(x) -> String.to_integer(x) end)
+      |> Enum.split(9)
+
+    "0978#{code}#{check_digit}"
+
+  end
+  def normalize_gtin(gtin, "GTIN-12"), do: "00#{gtin}"
+  def normalize_gtin(gtin, "GTIN-13"), do: "0#{gtin}"
+  def normalize_gtin(gtin, "GTIN-14"), do: gtin
+
+
   @doc """
   Generate valid  GTIN-8, GTIN-12, GTIN-13, GTIN-14, GSIN, SSCC codes
 
@@ -72,6 +93,13 @@ defmodule ExGtin.Validation do
   @spec generate_gtin_code(list(number)) :: String.t() | {atom, String.t()}
   def generate_gtin_code(number) do
     case generate_check_code_length(number) do
+      {:ok, "ISBN-10"} ->
+        number = "0978" + number
+        check_digit = generate_check_digit(number)
+        result = number
+         |> Enum.concat([check_digit])
+         |> Enum.join
+        {:ok, result}
       {:ok, _} ->
         check_digit = generate_check_digit(number)
         result = number
@@ -162,7 +190,7 @@ defmodule ExGtin.Validation do
 
   @doc """
   Checks the code for the proper length as specified by the
-  GTIN-8,12,13,14 specification
+  GTIN-8,12,13,14 + ISBN10 specification
 
   Returns {atom, String.t()}
 
@@ -179,6 +207,7 @@ defmodule ExGtin.Validation do
   def check_code_length(number) do
     case length(number) do
       8  -> {:ok, "GTIN-8"}
+      10 -> {:ok, "ISBN-10"}
       12 -> {:ok, "GTIN-12"}
       13 -> {:ok, "GTIN-13"}
       14 -> {:ok, "GTIN-14"}
